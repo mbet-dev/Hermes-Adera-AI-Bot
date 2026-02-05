@@ -214,6 +214,17 @@ export async function POST(req: NextRequest) {
       sources.push(...Array.from(sourceNames));
     }
 
+    if (!responseText.toLowerCase().includes('sources:')) {
+      if (sources.length > 0) {
+        const detailed = knowledgeSources
+          ?.filter(s => sources.includes(s.name))
+          .map(s => s.url ? `${s.name} (${s.url})` : s.name) || [];
+        responseText = `${responseText}\n\nSources: ${detailed.join(', ')}`;
+      } else {
+        responseText = `${responseText}\n\nSources: None (no Adera source matched)`;
+      }
+    }
+
     const response: ChatResponse = {
       response: responseText,
       language: userLanguage,
@@ -299,8 +310,7 @@ async function generateResponse(
   // Get Adera-specific system prompt
   const systemPrompt = await getAderaSystemPrompt();
 
-  // Optimize system prompt for speed
-  const optimizedSystemPrompt = `${systemPrompt}\n\nBe concise and direct in your responses. Provide accurate information quickly.`;
+  const optimizedSystemPrompt = `${systemPrompt}\n\nProvide accurate, source-grounded answers quickly. Ground all claims in Adera sources or Knowledge Context. If the answer is not confirmed in Adera sources, state this clearly and avoid assumptions. End every reply with a Sources section listing the sources used.`;
 
   // Detect language
   const detectedLanguage = detectLanguage(message);
@@ -359,10 +369,10 @@ async function generateResponse(
     }
   }
 
-  // Add knowledge context (limit to 2 sources for speed)
+  // Add knowledge context (include up to 3 sources)
   if (knowledgeSources && knowledgeSources.length > 0) {
     const knowledgeContext = knowledgeSources
-      .slice(0, 2)
+      .slice(0, 3)
       .filter(k => k.content)
       .map(k => {
         if (k.type === 'pdf') {
@@ -378,7 +388,7 @@ async function generateResponse(
     if (knowledgeContext) {
       messages.push({
         role: 'assistant',
-        content: `Knowledge Context:\n${knowledgeContext}`,
+        content: `Knowledge Context:\n${knowledgeContext}\n\nUse this Knowledge Context to ground the answer and cite sources.`,
       });
     }
   }

@@ -91,6 +91,7 @@ interface ChatSettings {
   autoScroll: boolean;
   showSources: boolean;
   contextLength: number;
+  language: 'en' | 'am';
 }
 
 interface AuthUser {
@@ -135,6 +136,9 @@ const TRANSLATIONS = {
   contextLength: 'Context Length',
   clearChat: 'Clear Chat',
   chatCleared: 'Chat history cleared.',
+  language: 'Language',
+  english: 'English',
+  amharic: 'Amharic (አማርኛ)',
   sourceRemoved: 'Knowledge source removed.',
   sourceAdded: 'Source added successfully.',
   errorSending: 'Failed to send message. Please try again.',
@@ -189,6 +193,7 @@ export default function AderaBotHermes() {
     autoScroll: true,
     showSources: true,
     contextLength: 10,
+    language: 'en',
   });
 
   const [knowledgeSources, setKnowledgeSources] = useState<KnowledgeSource[]>([
@@ -939,6 +944,24 @@ export default function AderaBotHermes() {
                   </div>
                 </SheetContent>
               </Sheet>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" title={t.language} className="shadow-sm [&_svg]:!text-white">
+                    <Languages className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel>{t.language}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setSettings(prev => ({ ...prev, language: 'en' }))}>
+                    {t.english} {settings.language === 'en' ? '· Active' : ''}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSettings(prev => ({ ...prev, language: 'am' }))}>
+                    {t.amharic} {settings.language === 'am' ? '· Active' : ''}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

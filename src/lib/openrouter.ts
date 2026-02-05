@@ -62,7 +62,7 @@ export async function openRouterChat(
         model,
         messages,
         max_tokens: maxTokens,
-        temperature: 0.7,
+        temperature: 0.2,
       }),
     });
     const errText = res.ok ? '' : await res.text();
