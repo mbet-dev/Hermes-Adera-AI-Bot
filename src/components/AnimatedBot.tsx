@@ -71,9 +71,8 @@ export default function AnimatedBot({ className }: { className?: string }) {
         exposure: '1',
         'interaction-prompt': 'none',
         'disable-zoom': true,
-        ar: 'false',
         loading: 'lazy',
-        style: { width: '100%', height: heightRem, borderRadius: '0.75rem' },
+        style: { width: '100%', height: heightRem, borderRadius: '0.75rem', ['--progress-bar-color' as any]: '#32cd32' },
       })}
     </div>
   )
