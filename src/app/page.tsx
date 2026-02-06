@@ -64,6 +64,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import AnimatedBot from '@/components/AnimatedBot';
 
 interface Message {
   id: string;
@@ -113,7 +114,7 @@ const DEFAULT_ADERA_KNOWLEDGE: KnowledgeSource[] = [
 
 const TRANSLATIONS = {
   title: 'AderaBot-Hermes',
-  subtitle: 'AI Knowledge Assistant',
+  subtitle: 'AI Adera Hybrid Ecosystem Assistant',
   welcome: 'Hello! I am AderaBot-Hermes, your AI assistant for Adera-Hybrid-App.',
   welcome2: 'How can I assist you today?',
   welcomeAdmin: 'Welcome Admin! You have full access to manage the knowledge base.',
@@ -226,6 +227,8 @@ export default function AderaBotHermes() {
   const [newWebUrl, setNewWebUrl] = useState('');
   const [isAddingSource, setIsAddingSource] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const [mounted, setMounted] = useState(false);
   const [isLoadingKnowledge, setIsLoadingKnowledge] = useState(false);
   const { toast } = useToast();
@@ -273,6 +276,17 @@ export default function AderaBotHermes() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, settings.autoScroll, mounted]);
+
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+    };
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
 
   // Login handler
   const handleLogin = async () => {
@@ -712,8 +726,8 @@ export default function AderaBotHermes() {
     });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -735,7 +749,7 @@ export default function AderaBotHermes() {
   return (
     <div className="h-dvh sm:min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-muted/20">
       {/* Header - deep blue */}
-      <header data-header-nav className="flex-shrink-0 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-sm sticky top-0 z-50 shadow-lg text-primary-foreground">
+      <header ref={headerRef} data-header-nav className="flex-shrink-0 border-b border-[var(--header-border)] bg-[var(--header-bg)] backdrop-blur-sm sticky top-0 z-50 shadow-lg text-primary-foreground">
         <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -1002,7 +1016,6 @@ export default function AderaBotHermes() {
               </DropdownMenu>
             </div>
           </div>
-
           {/* User info bar */}
           {user && (
             <div className="mt-3 flex items-center gap-2 text-sm">
@@ -1026,6 +1039,12 @@ export default function AderaBotHermes() {
           )}
         </div>
       </header>
+
+      <section className="flex-shrink-0 sticky z-40 bg-background/80 backdrop-blur-sm border-b" style={{ top: headerHeight }}>
+        <div className="container mx-auto px-3 sm:px-4 py-2">
+          <AnimatedBot />
+        </div>
+      </section>
 
       {/* User Data Panel */}
       {showUserData && userData && (
@@ -1133,6 +1152,7 @@ export default function AderaBotHermes() {
                   )}
 
                   <div className={`max-w-[85%] md:max-w-[75%] rounded-2xl px-4 py-3 ${message.role === 'user' ? 'bg-primary text-primary-foreground shadow-md' : message.role === 'system' ? 'bg-muted' : 'bg-muted/90'}`}>
+                    
                     {message.image && (
                       <div className="mb-2">
                         <img src={message.image} alt="Uploaded" className="max-w-full h-auto rounded-lg" />
@@ -1231,7 +1251,7 @@ export default function AderaBotHermes() {
               placeholder={t.placeholder}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
+              onKeyDown={handleKeyDown}
               className="min-h-[48px] max-h-[120px] resize-none shadow-sm"
               disabled={isLoading}
             />
