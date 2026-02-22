@@ -90,12 +90,45 @@ export async function openRouterChat(
       const isRetryable = res.status === 429 || res.status === 402;
       if (!isRetryable || attempt === RATE_LIMIT_RETRIES) break;
     }
-    if (lastRes?.status && lastRes.status !== 429 && lastRes.status !== 402) break;
     await sleep(800);
   }
 
-  const err = new Error(`OpenRouter API error ${lastRes!.status}: ${lastErrText}`) as Error & { status?: number };
-  err.status = lastRes!.status;
+  // Last resort: try openrouter/auto with the first API key if all configured models failed
+  try {
+    const { apiKey } = models[0];
+    const { ok, res, errText } = await (async () => {
+      const r = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'https://adera.example.com',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/auto',
+          messages,
+          max_tokens: maxTokens,
+          temperature: 0.2,
+        }),
+      });
+      const t = r.ok ? '' : await r.text();
+      return { ok: r.ok, res: r, errText: t };
+    })();
+    lastRes = res;
+    lastErrText = errText;
+    if (ok) {
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+      const text = data.choices?.[0]?.message?.content;
+      return text?.trim() || "Sorry, I couldn't generate a response.";
+    }
+  } catch (_) {
+    // ignore and throw original below
+  }
+
+  const err = new Error(`OpenRouter API error ${lastRes?.status ?? 'unknown'}: ${lastErrText}`) as Error & { status?: number };
+  err.status = lastRes?.status;
   throw err;
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAderaSystemPrompt } from '@/lib/adera-knowledge';
+import { getAderaSystemPrompt, fetchAderaKnowledge } from '@/lib/adera-knowledge';
 import { openRouterChat, type OpenRouterMessage } from '@/lib/openrouter';
 import { supabaseServer } from '@/lib/supabase';
 import { verify } from 'jsonwebtoken';
@@ -214,9 +214,22 @@ export async function POST(req: NextRequest) {
       sources.push(...Array.from(sourceNames));
     }
 
+    // If we used database context (user authenticated and requested), ensure database source is listed
+    if (user) {
+      const hasDbSource = (knowledgeSources ?? []).some(s => s.type === 'database');
+      if (queryUserData || hasDbSource) {
+        const dbSource = (knowledgeSources ?? []).find(s => s.type === 'database');
+        if (dbSource && !sources.includes(dbSource.name)) {
+          sources.push(dbSource.name);
+        } else if (!dbSource && !sources.includes('User & Delivery Database')) {
+          sources.push('User & Delivery Database');
+        }
+      }
+    }
+
     if (!responseText.toLowerCase().includes('sources:')) {
       if (sources.length > 0) {
-        const detailed = knowledgeSources
+        const detailed = (knowledgeSources ?? [])
           ?.filter(s => sources.includes(s.name))
           .map(s => s.url ? `${s.name} (${s.url})` : s.name) || [];
         responseText = `${responseText}\n\nSources: ${detailed.join(', ')}`;
@@ -366,29 +379,69 @@ async function generateResponse(
         role: 'assistant',
         content: adminContext,
       });
+    } else {
+      // For regular users: if database source is enabled or queryUserData is true, inject user-limited DB context
+      const wantsDbContext =
+        !!queryUserData ||
+        (!!knowledgeSources && knowledgeSources.some((k: any) => k.type === 'database'));
+      if (wantsDbContext) {
+        const personal = await getUserPersonalData(user.id, user.role);
+        if (personal && personal.user) {
+          const deliveriesText =
+            Array.isArray(personal.deliveries) && personal.deliveries.length > 0
+              ? personal.deliveries
+                  .slice(0, 10)
+                  .map(
+                    (d: any) =>
+                      `- Order ${d.order_number || d.id} | status: ${d.status || 'n/a'} | ${d.pickup_address || ''} → ${d.delivery_address || ''}`
+                  )
+                  .join('\n')
+              : 'No deliveries found for this user.';
+          const userText = `email: ${personal.user.email || 'n/a'} | role: ${personal.user.role || 'n/a'}`;
+          messages.push({
+            role: 'assistant',
+            content: `[User Database Context - restricted to the authenticated user]\nUser: ${userText}\n\nDeliveries (up to 10):\n${deliveriesText}\n\nUse this context to answer user-specific delivery questions while respecting access limits.`,
+          });
+        }
+      }
     }
   }
 
-  // Add knowledge context (include up to 3 sources)
+  // Add knowledge context from enabled sources, including Adera
   if (knowledgeSources && knowledgeSources.length > 0) {
-    const knowledgeContext = knowledgeSources
-      .slice(0, 3)
-      .filter(k => k.content)
+    const MAX_ITEMS = 5;
+    const MAX_PER_ITEM = 1200;
+    const pdfWeb = knowledgeSources
+      .filter((k: any) => (k.type === 'pdf' || k.type === 'web') && !!k.content && (k.enabled ?? true))
+      .slice(0, MAX_ITEMS)
       .map(k => {
-        if (k.type === 'pdf') {
-          return `[PDF - ${k.name}]: ${k.content?.substring(0, 1000)}`;
-        } else if (k.type === 'web') {
-          return `[Web - ${k.name}]: ${k.content?.substring(0, 1000)}`;
-        }
-        return '';
-      })
-      .filter(Boolean)
-      .join('\n\n');
+        const text = (k.content || '').substring(0, MAX_PER_ITEM);
+        return `${k.type === 'pdf' ? '[PDF' : '[Web'} - ${k.name}]: ${text}`;
+      });
 
-    if (knowledgeContext) {
+    const aderaEnabled = knowledgeSources.filter((k: any) => k.type === 'adera' && (k.enabled ?? true));
+    let aderaTexts: string[] = [];
+    if (aderaEnabled.length > 0) {
+      try {
+        const knowledgeData = await fetchAderaKnowledge();
+        const byName = new Map<string, any>();
+        for (const s of knowledgeData.sources) {
+          byName.set(s.name, s);
+        }
+        aderaTexts = aderaEnabled
+          .map(k => byName.get(k.name))
+          .filter(Boolean)
+          .slice(0, Math.max(0, MAX_ITEMS - pdfWeb.length))
+          .map((s: any) => `[Adera - ${s.name}]: ${(s.text || '').substring(0, MAX_PER_ITEM)}`);
+      } catch {}
+    }
+
+    const allContextParts = [...pdfWeb, ...aderaTexts].filter(Boolean);
+    if (allContextParts.length > 0) {
+      const combined = allContextParts.join('\n\n').substring(0, MAX_ITEMS * (MAX_PER_ITEM + 100));
       messages.push({
         role: 'assistant',
-        content: `Knowledge Context:\n${knowledgeContext}\n\nUse this Knowledge Context to ground the answer and cite sources.`,
+        content: `Knowledge Context:\n${combined}\n\nUse this Knowledge Context to ground the answer and cite sources.`,
       });
     }
   }

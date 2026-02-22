@@ -452,7 +452,7 @@ export default function AderaBotHermes() {
       role: 'user',
       content: input.trim(),
       timestamp: new Date(),
-      image: imagePreview,
+        image: imagePreview ?? undefined,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -988,21 +988,21 @@ export default function AderaBotHermes() {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>{t.settings}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="flex items-center justify-between" as="div">
+                  <DropdownMenuItem className="flex items-center justify-between">
                     <span className="flex-1">{t.voiceInput}</span>
                     <Switch
                       checked={settings.voiceInput}
                       onCheckedChange={(checked) => setSettings(prev => ({ ...prev, voiceInput: checked }))}
                     />
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="flex items-center justify-between" as="div">
+                  <DropdownMenuItem className="flex items-center justify-between">
                     <span className="flex-1">{t.autoScroll}</span>
                     <Switch
                       checked={settings.autoScroll}
                       onCheckedChange={(checked) => setSettings(prev => ({ ...prev, autoScroll: checked }))}
                     />
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="flex items-center justify-between" as="div">
+                  <DropdownMenuItem className="flex items-center justify-between">
                     <span className="flex-1">{t.showSources}</span>
                     <Switch
                       checked={settings.showSources}
